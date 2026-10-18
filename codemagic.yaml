@@ -1,0 +1,44 @@
+# Codemagic build for the Coin Flip Challenge iPhone app.
+# Builds the app, signs it automatically, and sends it to TestFlight.
+workflows:
+  ios-testflight:
+    name: Coin Flip Challenge - iOS to TestFlight
+    instance_type: mac_mini_m2
+    max_build_duration: 60
+    integrations:
+      app_store_connect: CoinFlipCodemagic   # must match the name you give the Apple key in Codemagic
+    environment:
+      ios_signing:
+        distribution_type: app_store
+        bundle_identifier: com.troyhallewell.coinflipchallenge
+      vars:
+        BUNDLE_ID: "com.troyhallewell.coinflipchallenge"
+      node: 22
+      xcode: latest
+    scripts:
+      - name: Install web dependencies
+        script: npm ci
+      - name: Sync the game into the iOS project
+        script: npx cap sync ios
+      - name: Set up code signing
+        script: |
+          keychain initialize
+          app-store-connect fetch-signing-files "$BUNDLE_ID" --type IOS_APP_STORE --create
+          keychain add-certificates
+          xcode-project use-profiles
+      - name: Set build number
+        script: |
+          cd ios/App
+          agvtool new-version -all $BUILD_NUMBER
+      - name: Build the .ipa
+        script: |
+          xcode-project build-ipa \
+            --project "ios/App/App.xcodeproj" \
+            --scheme App
+    artifacts:
+      - build/ios/ipa/*.ipa
+      - /tmp/xcodebuild_logs/*.log
+    publishing:
+      app_store_connect:
+        auth: integration
+        submit_to_testflight: true
